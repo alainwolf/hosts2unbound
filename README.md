@@ -13,7 +13,7 @@ This script does three things:
 
 ## Notes
 
-### GitHub Static Downloads
+### GitHub Raw File Downloads
 
 Apparently the HTTP server for GitHub raw files doesn't send any 
 `last-modified` data in its HTTP haders. I recommend using  alternative links, 
@@ -21,16 +21,19 @@ if posiible, to avoid re-processing the same data again and again.
 
 You can test if a HTTP server sends a last-modified tag:
 
-    $ curl -s -D /dev/stdout -o /dev/null http://sbc.io/hosts/hosts | grep "Last-Modified:"
+    $ curl -s -D /dev/stdout -o /dev/null http://sbc.io/hosts/hosts \
+        | grep "Last-Modified:"
     Last-Modified: Mon, 19 Oct 2020 23:43:28 GMT
 
 The following will not yeld any output:
 
-    $ curl -s -D /dev/stdout -o /dev/null https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts | grep "Last-Modified:"
+    $ curl -s -D /dev/stdout -o /dev/null \
+        https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts \
+            | grep "Last-Modified:"
 
 
 
-### local-zone and loca-data
+### local-zone and local-data
 
 Traditionally scripts and advisories used a local-zone redirect and then provide
 local-data to point A records to either `127.0.0.1` or more recently to `0.0.0.0`.
@@ -55,7 +58,8 @@ Any of `deny`, `refuse`, `static`, `always_refuse`, `always_nxdomain` will work,
 as they don't need additional local-data.
 
 See the
-[unbound.conf](https://nlnetlabs.nl/documentation/unbound/unbound.conf/)
+[unbound.conf](https://nlnetlabs.nl/documentation/unbound/unbound.conf/) man
+page.
 
 For now I use `refuse` in my configuration:
 
@@ -63,6 +67,7 @@ For now I use `refuse` in my configuration:
   and number of records parsed in half.
 * Clients can see, that their query was refused instead of receiving a false
   answer.
+* No connection attempts to localhost or anywhere else.
 
 Like this:
 
@@ -78,5 +83,5 @@ Or like this:
     ** server can't find ad.doubleclick.net: REFUSED
 
 
-The downside of this aproach is, that the whole domain is blocked, 
-I can't no longer send mail to them or do anything else besides HTTP connections.
+The downside of this aproach is that not only the host-address is blocked, but
+any other query to that domain, i.e. MX records.
