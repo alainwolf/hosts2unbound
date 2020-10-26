@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+#
+# Advertsiments blocking with unbound DNS server
+# 
+# by Alain Wolf (https://github.com/alainwolf)
+#
+# This script does three things:
+#  1. Download your choice of multiple adblocking hosts files.
+#  2. Convert the downloaded hosts files to Unbound DNS server local-zones,
+#     of your chosen zone-type.
+#  3. Load the new local-zones into a running Unbound server, without server 
+#     restart, preserving your servers DNS cache.
+#
+
+# Bail out on error.
+set -e
+set -o pipefail
+set -u
+
+# We need root privileges (for write access to /etc and for unbound-control).
+if [[ $(id -u) -ne 0 ]] ; then 
+    echo "Sorry, but you need root privileges to use this." ; 
+    exit 1 ; 
+fi
+
+# ---------------
+# Settings
+# ---------------
+
+# List of hosts-file sources
+declare -A hosts
+
+# Steven Black - Unified hosts (adware + malware)
+# See https://github.com/StevenBlack/hosts
+hosts+=(["StevenBlack"]="http://sbc.io/hosts/hosts")
+
+# Microsoft, Nvidia telemetry gathering
+hosts+=(["WindowsTelemetry"]="https://www.encrypt-the-planet.com/downloads/hosts")
+
+# Ultimate.Hosts.Blacklist - https://github.com/Ultimate-Hosts-Blacklist/Ultimate.Hosts.Blacklist
+#hosts+=(["Ultimate"]="https://hosts.ubuntu101.co.za/hosts")
+
+# Unbound zone type to use. See man unbound.conf(5) 
+unbound_zone_type="refuse"
+
+UNBOUND_USER=unbound
+UNBOUND_GROUP=unbound
+
+DATA_DIR="./data"
+UNBOUND_CONF_DIR="/etc/unbound/adservers.d"
+
+# Prerequesites
+LC_TIME=en_US.UTF-8
+TEMP_DIR=$(mktemp --tmpdir --directory unbound-adblock.XXXXXX)
+mkdir -p "$DATA_DIR"
+mkdir -p "$UNBOUND_CONF_DIR"
+
+# ---------------
+# Functions
+# ---------------
+
+function download_hosts
+{
+    #
+    # Download Hosts file from supplied URL, if its newer then the supplied date.
+    #
+    echo -n "Checking $this_hosts for updates since $last_updated ... "
+    if curl --fail --silent --show-error --location --compressed --remote-time \
+        --time-cond "$last_updated" \
+        --output "${TEMP_DIR}/${this_hosts}" \
+        "${hosts[$this_hosts]}"
+    then
+        echo "Done"
+    else
+        echo "Download failed!"
+        return
+    fi
+}
+
+function convert_hosts_to_conf
+{
+    #
+    # Convert hosts file to unbound server configuration file.
+    #
+    # Original command-line from:
+    # https://deadc0de.re/articles/unbound-blocking-ads.html
+    echo -n "Creating unbound zones from $this_hosts ... "
+    echo "server:" > "${TEMP_DIR}/${this_hosts}.conf"
+    grep '^0\.0\.0\.0' "${DATA_DIR}/${this_hosts}" | \
+        awk -v zonetype=$unbound_zone_type '{ print "local-zone: \""$2"\"", zonetype }' \
+            >> "${TEMP_DIR}/${this_hosts}.conf"
+    touch --reference="${DATA_DIR}/${this_hosts}" "${TEMP_DIR}/${this_hosts}.conf"
+    install --mode=644 --preserve-timestamps --backup \
+            --owner $UNBOUND_USER --group $UNBOUND_GROUP \
+            "${TEMP_DIR}/${this_hosts}.conf" \
+            "${UNBOUND_CONF_DIR}/${this_hosts}.conf"
+
+    echo 'Done.'
+}
+
+function convert_hosts_to_import
+{
+    #
+    # Concert hosts file to unbound-control local-zones bulk import file.
+    #
+    grep '^0\.0\.0\.0' "${DATA_DIR}/${this_hosts}" | \
+        awk -v zonetype=${unbound_zone_type} '{ print "\""$2"\"", zonetype }' \
+            >> "${TEMP_DIR}/${this_hosts}.local-zones"
+    touch --reference="${DATA_DIR}/${this_hosts}" \
+        "${TEMP_DIR}/${this_hosts}.local-zones"
+}
+
+function import_local_zones
+{
+    #
+    # Bulk import of local a zones
+    echo -n "Importing $this_hosts local zones in server cache ... "
+    unbound-control local_zones < "${TEMP_DIR}/${this_hosts}.local-zones"
+    echo 'Done.'
+}
+
+# ---------------
+# Main
+# ---------------
+for this_hosts in "${!hosts[@]}"; 
+do 
+    
+    # Do we have a previously cached hosts file
+    if [ -s "${DATA_DIR}/${this_hosts}" ]; then
+        
+        # When was this last updated?
+        last_updated=$( date --rfc-email --reference="${DATA_DIR}/${this_hosts}" )
+    else
+        # The day the Unbound DNS server was born.
+        last_updated="$( date --rfc-email --date='15 December 2006')"
+    fi
+
+    # Download this hosts file (if its newer then what we already have).
+    download_hosts
+
+    # Do we have a download?
+    if [ -s "${TEMP_DIR}/${this_hosts}" ]; then
+
+        echo "Download of $this_hosts from $( date -r "${TEMP_DIR}/${this_hosts}" ) successful."
+        echo -n "Cacheing updated $this_hosts blocklist ... "
+
+        # Cache this file
+        install --mode=644 --preserve-timestamps --backup \
+                --owner $UNBOUND_USER --group $UNBOUND_GROUP \
+            "${TEMP_DIR}/${this_hosts}" "${DATA_DIR}/${this_hosts}"
+        echo 'Done.'
+    else
+        echo "Downloaded file for $this_hosts was not found!"
+
+    fi
+
+    # Do we have a cached copy?
+    if [ -s "${DATA_DIR}/${this_hosts}" ]; then
+
+        # Do we have this unbound zone
+        if [ -s "${UNBOUND_CONF_DIR}/${this_hosts}.conf" ]; then
+
+            # Is it newer then what we have?
+            if [ "${UNBOUND_CONF_DIR}/${this_hosts}.conf" -ot "${DATA_DIR}/${this_hosts}" ]; then
+
+                # Convert to unbound server configuration file
+                convert_hosts_to_conf
+
+                # Convert to unbound-conrol import file
+                convert_hosts_to_import
+                
+                # Import
+                import_local_zones
+
+            else
+                echo "Unbound zone for $this_hosts is already up-to-date."
+            fi
+        else
+            echo "Unbound server configuration file for $this_hosts not found!"
+
+                # Convert to unbound server configuration file
+                convert_hosts_to_conf
+
+                # Convert to unbound-conrol import file
+                convert_hosts_to_import
+                
+                # Import
+                import_local_zones
+
+        fi
+    else
+        echo "Cached copy of hosts file for $this_hosts not found!"
+    fi
+    echo
+
+done
+echo "All done."
+
