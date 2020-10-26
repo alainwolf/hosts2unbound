@@ -4,7 +4,7 @@
 
 This script does three things:
 
-1. Download your choice of multiple adblocking hosts files.
+1. Download your choice of multiple adblock hosts files.
 1. Convert the downloaded hosts files to Unbound DNS server local-zones, of your
    chosen zone-type.
 1. Load the new local-zones into a running Unbound server, without server
@@ -16,8 +16,8 @@ This script does three things:
 ### GitHub Raw File Downloads
 
 Apparently the HTTP server for GitHub raw files doesn't send any 
-`last-modified` data in its HTTP haders. I recommend using  alternative links, 
-if posiible, to avoid re-processing the same data again and again.
+`last-modified` data in its HTTP headers. I recommend using  alternative links, 
+if possible, to avoid re-processing the same data again and again.
 
 You can test if a HTTP server sends a last-modified tag:
 
@@ -83,5 +83,5 @@ Or like this:
     ** server can't find ad.doubleclick.net: REFUSED
 
 
-The downside of this aproach is that not only the host-address is blocked, but
+The downside of this approach is that not only the host-address is blocked, but
 any other query to that domain, i.e. MX records.
