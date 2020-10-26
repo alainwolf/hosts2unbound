@@ -2,7 +2,8 @@
 #
 # Advertsiments blocking with unbound DNS server
 # 
-# by Alain Wolf (https://github.com/alainwolf)
+# Copyright (c) 2020 Alain Wolf 
+# https://github.com/alainwolf/hosts2unbound
 #
 # This script does three things:
 #  1. Download your choice of multiple adblocking hosts files.
@@ -37,9 +38,6 @@ hosts+=(["StevenBlack"]="http://sbc.io/hosts/hosts")
 # Microsoft, Nvidia telemetry gathering
 hosts+=(["WindowsTelemetry"]="https://www.encrypt-the-planet.com/downloads/hosts")
 
-# Ultimate.Hosts.Blacklist - https://github.com/Ultimate-Hosts-Blacklist/Ultimate.Hosts.Blacklist
-#hosts+=(["Ultimate"]="https://hosts.ubuntu101.co.za/hosts")
-
 # Unbound zone type to use. See man unbound.conf(5) 
 unbound_zone_type="refuse"
 
@@ -54,6 +52,7 @@ LC_TIME=en_US.UTF-8
 TEMP_DIR=$(mktemp --tmpdir --directory unbound-adblock.XXXXXX)
 mkdir -p "$DATA_DIR"
 mkdir -p "$UNBOUND_CONF_DIR"
+
 
 # ---------------
 # Functions
@@ -118,6 +117,7 @@ function import_local_zones
     unbound-control local_zones < "${TEMP_DIR}/${this_hosts}.local-zones"
     echo 'Done.'
 }
+
 
 # ---------------
 # Main
