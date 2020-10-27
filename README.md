@@ -53,9 +53,9 @@ Unfortunately on Linux `0.0.0.0` is just silently treated as `127.0.0.1`:
     3 packets transmitted, 3 received, 0% packet loss, time 2025ms
     rtt min/avg/max/mdev = 0.046/0.047/0.048/0.000 ms
 
-Unbound offers a wide range of choices of of local-zone types. documentation.
-Any of `deny`, `refuse`, `static`, `always_refuse`, `always_nxdomain` will work,
-as they don't need additional local-data.
+Unbound offers a range of local-zone types. Any of `deny`, `refuse`,
+`static`, `always_refuse`, `always_nxdomain` will work, as none of them need
+additional local-data.
 
 See the
 [unbound.conf](https://nlnetlabs.nl/documentation/unbound/unbound.conf/) man
